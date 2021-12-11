@@ -6,10 +6,10 @@
 //
 
 import UIKit
-
+import Combine
 
 class ViewController: UIViewController {
-
+    
     private let firstNameTxtField: UITextField = {
         let txtField = UITextField()
         txtField.translatesAutoresizingMaskIntoConstraints = false
@@ -54,14 +54,25 @@ class ViewController: UIViewController {
         return stackVw
     }()
     
+    private let person = CurrentValueSubject<Person, Error>(Person(firstName: "", lastName: "", occupation: ""))
+    
+    private var subscriptions = Set<AnyCancellable>()
+    
     override func loadView() {
         super.loadView()
         setup()
+        setupInputSubscriptions()
+        setupPersonSubscription()
     }
     
     @objc
     func confirmDidTouch() {
         
+        if person.value.isValid {
+            person.send(completion: .finished)
+        } else {
+            self.showFailed(message: UserError.invalid.errorDescription)
+        }
     }
 }
 
@@ -73,14 +84,14 @@ private extension ViewController {
         formContainerStackVw.addArrangedSubview(lastNameTxtField)
         formContainerStackVw.addArrangedSubview(occupationTxtField)
         formContainerStackVw.addArrangedSubview(confirmBtn)
-
+        
         view.addSubview(formContainerStackVw)
         
         NSLayoutConstraint.activate([
             formContainerStackVw.leadingAnchor.constraint(equalTo: view.leadingAnchor,
                                                           constant: 16),
             formContainerStackVw.trailingAnchor.constraint(equalTo: view.trailingAnchor,
-                                                          constant: -16),
+                                                           constant: -16),
             formContainerStackVw.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             formContainerStackVw.centerYAnchor.constraint(equalTo: view.centerYAnchor)
         ])
@@ -89,4 +100,49 @@ private extension ViewController {
             .arrangedSubviews
             .forEach { $0.heightAnchor.constraint(equalToConstant: 44).isActive = true }
     }
+    
+    func setupInputSubscriptions() {
+        
+        NotificationCenter
+            .default
+            .publisher(for: UITextField.textDidChangeNotification, object: firstNameTxtField)
+            .compactMap({ ($0.object as? UITextField)?.text })
+        // weak self make sure it gets disposed and no strong reference with in this vc
+            .sink { [weak self] val in
+                self?.person.value.firstName = val
+            }
+            .store(in: &subscriptions)
+        
+        NotificationCenter
+            .default
+            .publisher(for: UITextField.textDidChangeNotification, object: lastNameTxtField)
+            .compactMap({ ($0.object as? UITextField)?.text })
+        // weak self make sure it gets disposed and no strong reference with in this vc
+            .sink { [weak self] val in
+                self?.person.value.lastName = val
+            }
+            .store(in: &subscriptions)
+        
+        NotificationCenter
+            .default
+            .publisher(for: UITextField.textDidChangeNotification, object: occupationTxtField)
+            .compactMap({ ($0.object as? UITextField)?.text })
+        // weak self make sure it gets disposed and no strong reference with in this vc
+            .sink { [weak self] val in
+                self?.person.value.occupation = val
+            }
+            .store(in: &subscriptions)
+    }
+    
+    func setupPersonSubscription() {
+        
+        person
+            .sink { [weak self]_ in
+                print("Final input: \(self?.person.value.message ?? "")")
+            } receiveValue: { person in
+                print(person)
+            }
+            .store(in: &subscriptions)
+    }
+    
 }
