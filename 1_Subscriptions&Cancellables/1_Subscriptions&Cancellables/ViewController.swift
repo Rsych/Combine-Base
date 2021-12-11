@@ -79,6 +79,8 @@ class ViewController: UIViewController {
     @objc
     func stopTimer() {
         print("Stop")
+//        subscription = nil
+        subscription?.cancel()
     }
 }
 
